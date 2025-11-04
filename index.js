@@ -3,14 +3,72 @@ const cors = require('cors');
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
+const admin = require("firebase-admin");
 const port = process.env.PORT || 3000;
 // console.log(process.env)
+
+
+const serviceAccount = require("./smart-deals-firebase-admin-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+
+
 
 // middleware
 app.use(cors());
 app.use(express.json());
 
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.vyznij5.mongodb.net/?appName=Cluster0`;
+
+// const verifyFireBaseToken = async (req, res, next) => {
+//   console.log('hello there form here')
+//     const authorization = req.headers.authorization;
+    // if (!authorization) {
+    //     return res.status(401).send({ message: 'unauthorized access' })
+    // }
+    // const token = authorization.split(' ')[1];
+    
+//     try {
+//         const decoded = await admin.auth().verifyIdToken(token);
+//         console.log('inside token', decoded)
+//         req.token_email = decoded.email;
+        // next();
+//     }
+//     catch (error) {
+//         return res.status(401).send({ message: 'unauthorized access' })
+//     }
+// }
+
+
+
+const verifyFireBaseToken = async (req, res, next) => {
+    const authorization = req.headers.authorization;
+
+    if (!authorization) {
+        return res.status(401).send({ message: 'unauthorized access one' })
+    }
+    const token = authorization.split(' ')[1];
+    console.log(token);
+    if(!token){
+      return res.status(401).send({message: 'unauthorized access two'})
+    }
+    try {
+        const userIffo = await admin.auth().verifyIdToken(token);
+        console.log('after token validation', userIffo);
+        req.token_email=userIffo.email;
+        next();
+
+    }
+    catch (error) {
+      console.log(error);
+        return res.status(401).send({ message: 'unauthorized access three' })
+    }
+}
+
+
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.qwnp7az.mongodb.net/?appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -118,11 +176,15 @@ async function run() {
 
 
     // bids related apis
-     app.get('/bids', async (req, res) => {
+     app.get('/bids', verifyFireBaseToken, async (req, res) => {
+      // console.log('headers', req.headers)
             const email = req.query.email;
             const query = {};
             if (email) {
-                query.bidder_email = email;
+                query.buyer_email = email;
+                 if(email !== req.token_email){
+                    return res.status(403).send({message: 'forbidden access'})
+                }
             }
 
             const cursor = bidsCollection.find(query);
@@ -131,7 +193,7 @@ async function run() {
     })
 
 
-    app.get('/products/bids/:productId', async (req, res) => {
+    app.get('/products/bids/:productId', verifyFireBaseToken, async (req, res) => {
             const productId = req.params.productId;
             const query = { product: productId }
             const cursor = bidsCollection.find(query).sort({ bid_price: -1 })
@@ -140,17 +202,17 @@ async function run() {
     })
 
 
-    app.post('/bids', async (req, res) => {
+    // app.post('/bids', async (req, res) => {
 
-            const query = {};
-            if(query.email){
-              query.buyer_email = email;
-            }
+    //         const query = {};
+    //         if(query.email){
+    //           query.buyer_email = email;
+    //         }
 
-            const cursor = bidsCollection.find();
-            const result = await cursor.toArray();
-            res.send(result);
-    })
+    //         const cursor = bidsCollection.find();
+    //         const result = await cursor.toArray();
+    //         res.send(result);
+    // })
 
     app.post('/bids', async (req, res) => {
             const newBid = req.body;
