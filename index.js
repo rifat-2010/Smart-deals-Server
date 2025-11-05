@@ -55,9 +55,9 @@ const verifyFireBaseToken = async (req, res, next) => {
       return res.status(401).send({message: 'unauthorized access two'})
     }
     try {
-        const userIffo = await admin.auth().verifyIdToken(token);
-        console.log('after token validation', userIffo);
-        req.token_email=userIffo.email;
+        const decoded = await admin.auth().verifyIdToken(token);
+        console.log('after token validation', decoded);
+        req.token_email=decoded.email;
         next();
 
     }
@@ -138,7 +138,8 @@ async function run() {
 
 
 
-    app.post('/products', async(req, res) => {
+    app.post('/products', verifyFireBaseToken, async(req, res) => {
+      console.log('headers in the post ', req.headers)
         const newProduct = req.body;
         const result = await productsCollection.insertOne(newProduct);
         res.send(result);
